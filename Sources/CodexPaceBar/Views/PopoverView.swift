@@ -1,4 +1,5 @@
 import CodexPaceBarCore
+import CodexPaceBarAppSupport
 import AppKit
 import Charts
 import SwiftUI
@@ -97,7 +98,13 @@ struct PopoverView: View {
             if snapshot.isStale {
                 Text("Data may be stale after reset.")
                     .font(.caption)
-                .foregroundStyle(.secondary)
+                    .foregroundStyle(.secondary)
+            }
+
+            if history.lastPersistenceError != nil {
+                Text("Local history could not be saved. Forecast learning may be limited.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
         }
     }

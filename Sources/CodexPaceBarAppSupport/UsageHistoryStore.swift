@@ -4,24 +4,26 @@ import Observation
 
 @MainActor
 @Observable
-final class UsageHistoryStore {
-    private(set) var samples: [UsageSample]
+public final class UsageHistoryStore {
+    public private(set) var samples: [UsageSample]
+    public private(set) var lastPersistenceError: String?
 
     @ObservationIgnored
     private let repository: UsageHistoryRepository
 
-    init(fileURL: URL? = nil, fileManager: FileManager = .default) {
+    public init(fileURL: URL? = nil, fileManager: FileManager = .default) {
         let fileURL = fileURL ?? Self.defaultFileURL(fileManager: fileManager)
         let repository = UsageHistoryRepository(fileURL: fileURL, fileManager: fileManager)
         self.repository = repository
         self.samples = repository.load()
+        self.lastPersistenceError = nil
     }
 
-    var currentSamples: [UsageSample] {
+    public var currentSamples: [UsageSample] {
         UsageHistorySeries.current(from: samples, now: Date())
     }
 
-    func record(window: CodexLimitWindow, at timestamp: Date) {
+    public func record(window: CodexLimitWindow, at timestamp: Date) {
         let sample = UsageSample(
             timestamp: timestamp,
             usedPercent: window.usedPercent,
@@ -31,8 +33,9 @@ final class UsageHistoryStore {
 
         do {
             samples = try repository.appending(sample, to: samples)
+            lastPersistenceError = nil
         } catch {
-            // History is optional; failed persistence must not interrupt rate-limit refreshes.
+            lastPersistenceError = error.localizedDescription
         }
     }
 

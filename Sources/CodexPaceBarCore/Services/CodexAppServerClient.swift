@@ -1,8 +1,19 @@
 import Foundation
 
+public struct CodexAppServerNotification: Equatable, Sendable {
+    public let method: String
+    public let params: JSONValue?
+
+    public init(method: String, params: JSONValue?) {
+        self.method = method
+        self.params = params
+    }
+}
+
 public actor CodexAppServerClient: CodexAppServerRequesting {
     private let executableURL: URL
     private var process: Process?
+    private var processGeneration: UUID?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
@@ -10,6 +21,7 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
     private var initialized = false
     private var nextRequestID = 1
     private var pending: [Int: CheckedContinuation<JSONValue, Error>] = [:]
+    private var notificationContinuations: [UUID: AsyncStream<CodexAppServerNotification>.Continuation] = [:]
 
     public init(executableURL: URL) {
         self.executableURL = executableURL
@@ -46,6 +58,16 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
         return try await sendRequest(method: method, params: params, timeoutSeconds: timeoutSeconds)
     }
 
+    public func notifications() -> AsyncStream<CodexAppServerNotification> {
+        let subscriberID = UUID()
+        return AsyncStream { continuation in
+            notificationContinuations[subscriberID] = continuation
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.removeNotificationSubscriber(subscriberID) }
+            }
+        }
+    }
+
     public func shutdown() async {
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
@@ -53,12 +75,14 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
         if process?.isRunning == true {
             process?.terminate()
         }
+        processGeneration = nil
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
         initialized = false
         failPending(PaceError.appServerExited(nil))
+        finishNotificationStreams()
     }
 
     private func startIfNeeded() throws {
@@ -70,6 +94,7 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
         decoder = JsonRpcLineDecoder()
 
         let process = Process()
+        let generation = UUID()
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -93,8 +118,15 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
         }
 
         process.terminationHandler = { [weak self] process in
-            Task { await self?.handleTermination(status: process.terminationStatus) }
+            Task {
+                await self?.handleTermination(
+                    status: process.terminationStatus,
+                    generation: generation
+                )
+            }
         }
+
+        self.processGeneration = generation
 
         do {
             try process.run()
@@ -219,6 +251,17 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
             return
         }
 
+        if let method = object["method"]?.stringValue {
+            let notification = CodexAppServerNotification(
+                method: method,
+                params: object["params"]
+            )
+            for continuation in notificationContinuations.values {
+                continuation.yield(notification)
+            }
+            return
+        }
+
         guard let id = object["id"]?.intValue else {
             return
         }
@@ -237,15 +280,21 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
         continuation.resume(returning: object["result"] ?? .null)
     }
 
-    private func handleTermination(status: Int32) {
+    private func handleTermination(status: Int32, generation: UUID) {
+        guard processGeneration == generation else {
+            return
+        }
+
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
+        processGeneration = nil
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
         stderrPipe = nil
         initialized = false
         failPending(PaceError.appServerExited(status))
+        finishNotificationStreams()
     }
 
     private func cancelPendingRequest(_ id: Int) {
@@ -259,6 +308,18 @@ public actor CodexAppServerClient: CodexAppServerRequesting {
         self.pending.removeAll()
         for continuation in pending.values {
             continuation.resume(throwing: error)
+        }
+    }
+
+    private func removeNotificationSubscriber(_ id: UUID) {
+        notificationContinuations.removeValue(forKey: id)
+    }
+
+    private func finishNotificationStreams() {
+        let continuations = notificationContinuations.values
+        notificationContinuations.removeAll()
+        for continuation in continuations {
+            continuation.finish()
         }
     }
 

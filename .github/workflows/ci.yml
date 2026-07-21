@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Swift tests
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Swift toolchain
+        run: swift --version
+
+      - name: Validate shell scripts
+        run: bash -n script/build_and_run.sh script/release_gate.sh script/package_dmg.sh
+
+      - name: Run local release gate
+        run: bash script/release_gate.sh
