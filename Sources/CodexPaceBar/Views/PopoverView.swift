@@ -326,7 +326,7 @@ struct PopoverView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 4)) {
+                AxisMarks(values: .automatic(desiredCount: 7)) {
                     AxisGridLine()
                     AxisValueLabel(format: .dateTime.weekday(.abbreviated).hour())
                 }
