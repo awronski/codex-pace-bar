@@ -84,6 +84,19 @@ struct PopoverView: View {
                 )
 
                 Divider()
+                    .overlay {
+                        GeometryReader { geometry in
+                            let markerDiameter: CGFloat = 8
+                            let markerX = markerDiameter / 2
+                                + (geometry.size.width - markerDiameter) * CGFloat(snapshot.elapsedFraction)
+
+                            Circle()
+                                .fill(.blue)
+                                .frame(width: markerDiameter, height: markerDiameter)
+                                .position(x: markerX, y: geometry.size.height / 2)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .padding(.leading, 48)
 
                 DetailRow(
@@ -328,7 +341,7 @@ struct PopoverView: View {
             .chartXAxis {
                 AxisMarks(values: .automatic(desiredCount: 7)) {
                     AxisGridLine()
-                    AxisValueLabel(format: .dateTime.weekday(.abbreviated).hour())
+                    AxisValueLabel(format: .dateTime.weekday(.abbreviated))
                 }
             }
             .frame(height: 145)
