@@ -54,9 +54,11 @@ struct RefreshCoordinatorTests {
         coordinator.requestRefresh()
         coordinator.requestRefresh()
         coordinator.requestRefresh()
-        try await settle(nanoseconds: 150_000_000)
+        let secondRefreshCompleted = try await waitUntil {
+            fetcher.fetchCount == 2
+        }
 
-        #expect(fetcher.fetchCount == 2)
+        try #require(secondRefreshCompleted)
         #expect(model.snapshot?.actualUsedPercent == 20)
     }
 
@@ -185,6 +187,20 @@ struct RefreshCoordinatorTests {
 
     private func settle(nanoseconds: UInt64 = 30_000_000) async throws {
         try await Task.sleep(nanoseconds: nanoseconds)
+    }
+
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 5_000_000_000,
+        condition: () -> Bool
+    ) async throws -> Bool {
+        let start = DispatchTime.now().uptimeNanoseconds
+        while !condition() {
+            if DispatchTime.now().uptimeNanoseconds - start >= timeoutNanoseconds {
+                return false
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return true
     }
 
     private func makeFetchResult(usedPercent: Double, resetAt: Date = Date(timeIntervalSince1970: 10_000)) -> RateLimitFetchResult {
