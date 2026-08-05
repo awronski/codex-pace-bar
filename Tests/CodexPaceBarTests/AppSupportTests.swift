@@ -60,11 +60,15 @@ struct AppSupportTests {
                 resetsAt: resetAt
             )
 
-            let store = UsageHistoryStore(fileURL: fileURL)
+            let store = UsageHistoryStore(fileURL: fileURL, appVersion: "1.2.3-test")
             store.record(window: window, at: timestamp)
             let reloaded = UsageHistoryStore(fileURL: fileURL)
+            let persistedObject = try #require(
+                JSONSerialization.jsonObject(with: Data(contentsOf: fileURL)) as? [String: Any]
+            )
 
             #expect(store.lastPersistenceError == nil)
+            #expect(persistedObject["appVersion"] as? String == "1.2.3-test")
             #expect(reloaded.samples.count == 1)
             #expect(reloaded.samples.first?.usedPercent == 42)
             #expect(reloaded.samples.first?.limitId == "codex")

@@ -30,6 +30,33 @@ struct UsageHistoryRepositoryTests {
     }
 
     @Test
+    func persistedHistoryIncludesSchemaAndAppVersionMetadata() throws {
+        try withTemporaryDirectory { directory in
+            let primary = primaryURL(in: directory)
+            let first = sample(at: date(1_000), used: 10, resetAt: date(10_000))
+
+            _ = try repository(in: directory).appending(first, to: [])
+
+            let object = try #require(
+                JSONSerialization.jsonObject(with: Data(contentsOf: primary)) as? [String: Any]
+            )
+            #expect(object["schemaVersion"] as? Int == 1)
+            #expect(object["appVersion"] as? String == "test-version")
+            #expect((object["samples"] as? [Any])?.count == 1)
+        }
+    }
+
+    @Test
+    func legacyUnversionedHistoryStillLoads() throws {
+        try withTemporaryDirectory { directory in
+            let legacySample = sample(at: date(1_000), used: 10, resetAt: date(10_000))
+            try encode([legacySample]).write(to: primaryURL(in: directory), options: .atomic)
+
+            #expect(repository(in: directory).load() == [legacySample])
+        }
+    }
+
+    @Test
     func successfulWriteBacksUpPreviousPrimary() throws {
         try withTemporaryDirectory { directory in
             let primary = primaryURL(in: directory)
@@ -268,7 +295,7 @@ struct UsageHistoryRepositoryTests {
     }
 
     private func repository(in directory: URL) -> UsageHistoryRepository {
-        UsageHistoryRepository(fileURL: primaryURL(in: directory))
+        UsageHistoryRepository(fileURL: primaryURL(in: directory), appVersion: "test-version")
     }
 
     private func primaryURL(in directory: URL) -> URL {
@@ -286,6 +313,9 @@ struct UsageHistoryRepositoryTests {
     private func decode(_ url: URL) -> [UsageSample]? {
         guard let data = try? Data(contentsOf: url) else {
             return nil
+        }
+        if let history = try? JSONDecoder().decode(TestHistoryFile.self, from: data) {
+            return history.samples
         }
         return try? JSONDecoder().decode([UsageSample].self, from: data)
     }
@@ -313,4 +343,10 @@ struct UsageHistoryRepositoryTests {
 
 private enum TestWriteError: Error {
     case denied
+}
+
+private struct TestHistoryFile: Decodable {
+    let schemaVersion: Int
+    let appVersion: String
+    let samples: [UsageSample]
 }

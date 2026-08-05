@@ -11,6 +11,42 @@ struct UsagePatternForecasterTests {
     }
 
     @Test
+    func adaptedFutureUsageKeepsHistoryWhenCurrentPaceIsSimilar() {
+        let adapted = UsagePatternForecaster.adaptedFutureUsage(
+            historicalFutureUsage: 30,
+            currentObservedUsage: 10,
+            observedDuration: 2 * hour,
+            remainingDuration: 6 * hour
+        )
+
+        #expect(adapted == 30)
+    }
+
+    @Test
+    func adaptedFutureUsageIncreasesWhenHistoryIsSignificantlyLowerThanCurrentPace() {
+        let adapted = UsagePatternForecaster.adaptedFutureUsage(
+            historicalFutureUsage: 10,
+            currentObservedUsage: 10,
+            observedDuration: 2 * hour,
+            remainingDuration: 6 * hour
+        )
+
+        #expect(adapted == 15)
+    }
+
+    @Test
+    func adaptedFutureUsageDecreasesWhenHistoryIsSignificantlyHigherThanCurrentPace() {
+        let adapted = UsagePatternForecaster.adaptedFutureUsage(
+            historicalFutureUsage: 50,
+            currentObservedUsage: 10,
+            observedDuration: 2 * hour,
+            remainingDuration: 6 * hour
+        )
+
+        #expect(adapted == 45)
+    }
+
+    @Test
     func predictsExactExhaustionFromThirtyDaysOfHourlyPatterns() throws {
         let now = date("2026-07-13T09:00:00Z")
         let resetAt = now.addingTimeInterval(7 * day)

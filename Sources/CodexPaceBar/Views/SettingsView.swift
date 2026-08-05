@@ -39,7 +39,7 @@ struct SettingsView: View {
             SettingsRow(
                 icon: "chart.line.uptrend.xyaxis",
                 title: "History-based forecast",
-                subtitle: "Learns from the last 30 days; recent pace remains the fallback."
+                subtitle: "Learns from 30 days and adapts to the current window."
             ) {
                 Toggle("", isOn: $settings.historyBasedForecastEnabled)
                     .labelsHidden()

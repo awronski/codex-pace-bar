@@ -2,10 +2,12 @@ import Foundation
 
 public struct UsageHistoryRepository {
     public static let retentionDuration: TimeInterval = 30 * 24 * 60 * 60
+    public static let currentSchemaVersion = 1
 
     private let fileURL: URL
     private let backupURL: URL
     private let corruptURL: URL
+    private let appVersion: String
     private let retainedDuration: TimeInterval
     private let fileManager: FileManager
     private let writeData: (Data, URL) throws -> Void
@@ -13,12 +15,14 @@ public struct UsageHistoryRepository {
     public init(
         fileURL: URL,
         backupURL: URL? = nil,
+        appVersion: String = "development",
         retainedDuration: TimeInterval = Self.retentionDuration,
         fileManager: FileManager = .default
     ) {
         self.init(
             fileURL: fileURL,
             backupURL: backupURL ?? Self.defaultBackupURL(for: fileURL),
+            appVersion: appVersion,
             retainedDuration: retainedDuration,
             fileManager: fileManager,
             writeData: { data, url in
@@ -30,6 +34,7 @@ public struct UsageHistoryRepository {
     init(
         fileURL: URL,
         backupURL: URL,
+        appVersion: String = "development",
         retainedDuration: TimeInterval = Self.retentionDuration,
         fileManager: FileManager = .default,
         writeData: @escaping (Data, URL) throws -> Void
@@ -37,6 +42,7 @@ public struct UsageHistoryRepository {
         self.fileURL = fileURL
         self.backupURL = backupURL
         self.corruptURL = Self.defaultCorruptURL(for: fileURL)
+        self.appVersion = appVersion
         self.retainedDuration = retainedDuration
         self.fileManager = fileManager
         self.writeData = writeData
@@ -62,9 +68,14 @@ public struct UsageHistoryRepository {
             throw UsageHistoryRepositoryError.unexpectedSampleLoss
         }
 
-        let candidateData = try JSONEncoder().encode(candidate)
-        guard let validatedCandidate = try? JSONDecoder().decode([UsageSample].self, from: candidateData),
-              validatedCandidate == candidate
+        let candidateFile = UsageHistoryFile(
+            schemaVersion: Self.currentSchemaVersion,
+            appVersion: appVersion,
+            samples: candidate
+        )
+        let candidateData = try JSONEncoder().encode(candidateFile)
+        guard let validatedCandidate = try? JSONDecoder().decode(UsageHistoryFile.self, from: candidateData),
+              validatedCandidate == candidateFile
         else {
             throw UsageHistoryRepositoryError.validationFailed
         }
@@ -72,7 +83,7 @@ public struct UsageHistoryRepository {
         try fileManager.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
 
         if let currentData = try? Data(contentsOf: fileURL) {
-            if (try? JSONDecoder().decode([UsageSample].self, from: currentData)) != nil {
+            if Self.decodedSamples(from: currentData) != nil {
                 try writeData(currentData, backupURL)
             } else {
                 try? writeData(currentData, corruptURL)
@@ -87,6 +98,14 @@ public struct UsageHistoryRepository {
         guard let data = try? Data(contentsOf: url) else {
             return nil
         }
+        return Self.decodedSamples(from: data)
+    }
+
+    private static func decodedSamples(from data: Data) -> [UsageSample]? {
+        if let history = try? JSONDecoder().decode(UsageHistoryFile.self, from: data),
+           history.schemaVersion == currentSchemaVersion {
+            return history.samples
+        }
         return try? JSONDecoder().decode([UsageSample].self, from: data)
     }
 
@@ -99,6 +118,12 @@ public struct UsageHistoryRepository {
         fileURL.deletingLastPathComponent()
             .appendingPathComponent("usage-history.corrupt.json")
     }
+}
+
+private struct UsageHistoryFile: Codable, Equatable {
+    let schemaVersion: Int
+    let appVersion: String
+    let samples: [UsageSample]
 }
 
 public enum UsageHistoryRepositoryError: LocalizedError, Equatable {

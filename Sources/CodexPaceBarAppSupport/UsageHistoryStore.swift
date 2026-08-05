@@ -11,9 +11,20 @@ public final class UsageHistoryStore {
     @ObservationIgnored
     private let repository: UsageHistoryRepository
 
-    public init(fileURL: URL? = nil, fileManager: FileManager = .default) {
+    public init(
+        fileURL: URL? = nil,
+        fileManager: FileManager = .default,
+        appVersion: String? = nil
+    ) {
         let fileURL = fileURL ?? Self.defaultFileURL(fileManager: fileManager)
-        let repository = UsageHistoryRepository(fileURL: fileURL, fileManager: fileManager)
+        let appVersion = appVersion
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "development"
+        let repository = UsageHistoryRepository(
+            fileURL: fileURL,
+            appVersion: appVersion,
+            fileManager: fileManager
+        )
         self.repository = repository
         self.samples = repository.load()
         self.lastPersistenceError = nil
