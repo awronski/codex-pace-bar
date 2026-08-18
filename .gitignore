@@ -7,3 +7,5 @@ script/generate_readme_screenshots.swift
 .DS_Store
 *.xcuserstate
 .idea/
+*-qa.md
+docs/activity-insights-validation-manifest.json

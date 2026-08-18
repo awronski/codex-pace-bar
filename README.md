@@ -47,6 +47,9 @@ If your Codex CLI is installed somewhere else, set the exact executable path in 
 - A chart of usage percentage during the current weekly window.
 - A run-out forecast that learns recency-weighted hourly usage patterns for workdays and weekends from the last 30 days, then adapts their intensity to the current window.
 - A recent-pace forecast while the history-based model is still learning.
+- When the separate local Activity Insights (Beta) collector is explicitly enabled, one optional chart
+  row showing observed Codex time split between hands-on and hands-off work. Totals are labeled
+  as observed Codex time, while a stopped collector is still identified as stale.
 
 ![Codex Pace Bar menu bar item](docs/screenshots/menu-bar.png)
 
@@ -61,6 +64,7 @@ Settings are intentionally small:
 - Pace delta threshold.
 - Daily notification when usage is well above pace.
 - Forecast notification when predicted usage indicates the weekly limit may run out before reset.
+- A disabled-by-default Activity Insights (Beta) collector toggle and its local status.
 - History-based forecasting, enabled by default and configurable in Settings.
 - Launch at login, enabled by default and configurable in Settings.
 - Bar color scheme.
@@ -120,13 +124,42 @@ Ad-hoc signing is enough to seal the local app bundle, but it is not a substitut
 
 Codex Pace Bar is local-only.
 
-- No analytics.
-- No telemetry.
+- No analytics or telemetry are sent anywhere.
 - No external backend.
 - No network calls from this app.
 - No OpenAI credentials are requested or stored.
 - Account and rate-limit data is read only through the local Codex app-server using your existing Codex session.
 - Usage history contains local timestamps, percentage used, limit identifiers, and reset metadata for up to 30 days.
+
+The optional Activity Insights collector is a beta feature implemented as a separate,
+disabled-by-default local process. When enabled, it stores sanitized task
+provenance/timing/input-length facts and aggregate active-at-Mac
+and Codex-focus states for up to 30 days. Prompt text is processed locally only to count characters
+and UTF-8 bytes and is never written to the archive. It does not capture keystrokes, other app
+names, window titles, URLs, or a global input stream. The chart reads only a versioned seven-day
+aggregate snapshot. Settings invokes a bundled control helper to enable, disable, or refresh the
+independent user LaunchAgent; pace history, forecasting, and refresh components never open or
+write the Activity Insights archive.
+
+Activity Insights estimates active-at-Mac time from input idle duration and cannot decide whether
+the activity was productive work. It polls persisted Codex task history, so completed Codex work
+during sampler gaps is retained with unknown user/focus state. As a beta, its results are
+directional and can be incomplete while history and activity coverage accumulate. The development
+quality gate targets at least 95% history/focus/four-state coverage and two independent controlled
+truth sets (task metadata and state intervals) containing at least 20 unique cases across seven UTC
+work days. Passing state cases must cover every active/inactive × working/idle combination plus both
+foreground and background Codex-working intervals. Keep the real
+`docs/activity-insights-validation-manifest.json` local; the tracked example documents its
+prompt-free schema.
+
+Run the controlled local gate after building the audit helper:
+
+```bash
+swift build -c release --product ActivityInsightsAudit
+.build/release/ActivityInsightsAudit validate \
+  --manifest docs/activity-insights-validation-manifest.json \
+  --lookback-days 7
+```
 
 Debug information is redacted and limited to operational details such as selected executable path, app-server status, detected window durations, percentage values, reset timestamp presence, errors, and timestamps.
 

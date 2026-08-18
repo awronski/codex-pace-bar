@@ -1,3 +1,4 @@
+import CodexActivityInsightsControlAdapter
 import CodexPaceBarAppSupport
 import CodexPaceBarCore
 import SwiftUI
@@ -5,6 +6,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var settings: SettingsStore
     @Bindable var launchAtLogin: LaunchAtLoginController
+    @Bindable var activityInsights: ActivityInsightsCollectorController
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,6 +23,31 @@ struct SettingsView: View {
                     )
                 )
                 .labelsHidden()
+            }
+
+            SettingsDivider()
+
+            SettingsRow(
+                icon: "waveform",
+                title: "Activity Insights collector (Beta)",
+                subtitle: activityInsights.statusMessage
+            ) {
+                Toggle(
+                    "",
+                    isOn: Binding(
+                        get: { activityInsights.isEnabled },
+                        set: {
+                            activityInsights.setEnabled(
+                                $0,
+                                configuredCodexPath: settings.codexExecutablePath
+                            )
+                        }
+                    )
+                )
+                .labelsHidden()
+                .disabled(activityInsights.isBusy)
+                .accessibilityLabel("Enable Activity Insights collector beta")
+                .help(activityInsights.statusMessage)
             }
 
             SettingsDivider()
@@ -111,7 +138,7 @@ struct SettingsView: View {
         .padding(.horizontal, 24)
         .padding(.top, 28)
         .padding(.bottom, 24)
-        .frame(width: 620, height: 680)
+        .frame(width: 620, height: 760)
         .background {
             RoundedRectangle(cornerRadius: 0)
                 .fill(.regularMaterial)

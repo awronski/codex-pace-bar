@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 2,
+  "cases": [
+    {
+      "caseID": "user-direct-2026-08-08-01",
+      "workDate": "2026-08-08",
+      "threadID": "replace-with-collected-thread-id",
+      "turnID": "replace-with-collected-turn-id",
+      "inputItemID": "replace-with-collected-input-item-id",
+      "inputOrdinal": 0,
+      "expectedActor": "user",
+      "expectedMechanism": "interactive",
+      "expectedInputKind": "initialTask",
+      "expectedSubmittedAt": "2026-08-08T08:00:00Z",
+      "timestampToleranceSeconds": 5,
+      "expectedTextCharacters": 24,
+      "expectedUTF8Bytes": 24,
+      "expectedAttachmentCount": 0,
+      "expectedSkillCount": 0,
+      "expectedMentionCount": 0
+    }
+  ],
+  "stateCases": [
+    {
+      "caseID": "active-working-focused-2026-08-08-01",
+      "workDate": "2026-08-08",
+      "intervalStart": "2026-08-08T08:05:15Z",
+      "intervalEnd": "2026-08-08T08:05:45Z",
+      "expectedUserState": "active",
+      "expectedCodexState": "working",
+      "expectedFocusState": "focused",
+      "toleranceSeconds": 5
+    },
+    {
+      "caseID": "inactive-working-background-2026-08-08-02",
+      "workDate": "2026-08-08",
+      "intervalStart": "2026-08-08T08:12:15Z",
+      "intervalEnd": "2026-08-08T08:12:45Z",
+      "expectedUserState": "inactive",
+      "expectedCodexState": "working",
+      "expectedFocusState": "notFocused",
+      "toleranceSeconds": 5
+    },
+    {
+      "caseID": "active-idle-2026-08-08-03",
+      "workDate": "2026-08-08",
+      "intervalStart": "2026-08-08T08:20:15Z",
+      "intervalEnd": "2026-08-08T08:20:45Z",
+      "expectedUserState": "active",
+      "expectedCodexState": "idle",
+      "expectedFocusState": "notFocused",
+      "toleranceSeconds": 5
+    },
+    {
+      "caseID": "inactive-idle-2026-08-08-04",
+      "workDate": "2026-08-08",
+      "intervalStart": "2026-08-08T08:30:15Z",
+      "intervalEnd": "2026-08-08T08:30:45Z",
+      "expectedUserState": "inactive",
+      "expectedCodexState": "idle",
+      "expectedFocusState": "notFocused",
+      "toleranceSeconds": 5
+    }
+  ]
+}

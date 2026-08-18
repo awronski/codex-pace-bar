@@ -26,9 +26,8 @@ struct PopoverView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let snapshot = model.snapshot {
-                ScrollView(.vertical, showsIndicators: false) {
-                    metrics(snapshot)
-                }
+                metrics(snapshot)
+                    .frame(maxHeight: .infinity, alignment: .top)
             } else {
                 Text("Reading Codex rate limits...")
                     .foregroundStyle(.secondary)
@@ -42,7 +41,7 @@ struct PopoverView: View {
             }
         }
         .padding(20)
-        .frame(width: 465, height: 650)
+        .frame(width: 465, height: 760)
     }
 
     private var header: some View {
@@ -353,6 +352,8 @@ struct PopoverView: View {
                     color: model.forecast == nil ? .orange.opacity(0.4) : .orange
                 )
             }
+
+            ActivityInsightsChartRow()
         }
         .padding(12)
         .background(panelBackground)

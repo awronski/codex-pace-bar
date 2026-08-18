@@ -1,6 +1,7 @@
 @preconcurrency import AppKit
 import CodexPaceBarAppSupport
 import CodexPaceBarCore
+import CodexActivityInsightsControlAdapter
 import Foundation
 
 @MainActor
@@ -10,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let launchAtLogin = LaunchAtLoginController()
     private lazy var model = AppModel()
     private let notificationController = PaceNotificationController()
+    private let activityInsights = ActivityInsightsCollectorController()
     private lazy var coordinator = RefreshCoordinator(
         model: model,
         settings: settings,
@@ -37,8 +39,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         settingsWindowController = SettingsWindowController(
             settings: settings,
-            launchAtLogin: launchAtLogin
+            launchAtLogin: launchAtLogin,
+            activityInsights: activityInsights
         )
+        activityInsights.reconcile(configuredCodexPath: settings.codexExecutablePath)
         statusBarController = StatusBarController(
             model: model,
             settings: settings,
@@ -75,7 +79,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             scheduleTimers()
         case .display:
             statusBarController?.refreshIcon()
-        case .codexExecutable, .forecastMode, .paceThreshold:
+        case .codexExecutable:
+            activityInsights.reconcile(configuredCodexPath: settings.codexExecutablePath)
+        case .forecastMode, .paceThreshold:
             break
         }
         coordinator.settingsDidChange(change)
