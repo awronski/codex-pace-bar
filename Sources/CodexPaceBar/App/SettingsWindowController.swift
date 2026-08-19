@@ -39,9 +39,16 @@ final class SettingsWindowController {
         )
         let window = NSWindow(contentViewController: hostingController)
         window.title = "Settings"
-        window.styleMask = [.titled, .closable]
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.isMovableByWindowBackground = true
+        window.isOpaque = false
+        window.backgroundColor = .clear
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 620, height: 760))
+        window.minSize = NSSize(width: 717, height: 567)
+        window.setContentSize(NSSize(width: 717, height: 534))
         window.center()
         self.window = window
         window.makeKeyAndOrderFront(nil)

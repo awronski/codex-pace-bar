@@ -5,6 +5,7 @@ import Observation
 @Observable
 public final class ActivityInsightsCollectorController {
     public private(set) var isEnabled = false
+    public private(set) var isRunning = false
     public private(set) var isBusy = false
     public private(set) var statusMessage = "Off by default; stores local timing totals only."
 
@@ -73,7 +74,11 @@ public final class ActivityInsightsCollectorController {
             return
         }
         let previousValue = isEnabled
+        let previousRunningValue = isRunning
         isEnabled = enabled
+        if !enabled {
+            isRunning = false
+        }
         isBusy = true
         statusMessage = enabled ? "Starting local collection…" : "Stopping local collection…"
         Task {
@@ -85,6 +90,7 @@ public final class ActivityInsightsCollectorController {
                 ))
             } catch {
                 isEnabled = previousValue
+                isRunning = previousRunningValue
                 statusMessage = error.localizedDescription
             }
         }
@@ -92,6 +98,7 @@ public final class ActivityInsightsCollectorController {
 
     private func apply(_ status: ActivityInsightsCollectorStatus) {
         isEnabled = status.isEnabled
+        isRunning = status.isRunning
         if !status.isEnabled {
             statusMessage = "Off. Existing local data stays on this Mac."
         } else if status.isRunning {

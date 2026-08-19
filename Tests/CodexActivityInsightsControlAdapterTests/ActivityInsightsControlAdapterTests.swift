@@ -103,6 +103,31 @@ struct ActivityInsightsControlAdapterTests {
         }
     }
 
+    @Test @MainActor
+    func controllerDistinguishesRunningFromEnabled() async {
+        let runningController = ActivityInsightsCollectorController(
+            client: makeClient(runner: CommandRecorder(responses: [
+                response(enabled: true, installed: true, loaded: true, running: true)
+            ]))
+        )
+        runningController.refresh()
+        await waitUntilIdle(runningController)
+
+        #expect(runningController.isEnabled)
+        #expect(runningController.isRunning)
+
+        let waitingController = ActivityInsightsCollectorController(
+            client: makeClient(runner: CommandRecorder(responses: [
+                response(enabled: true, installed: true, loaded: true, running: false)
+            ]))
+        )
+        waitingController.refresh()
+        await waitUntilIdle(waitingController)
+
+        #expect(waitingController.isEnabled)
+        #expect(!waitingController.isRunning)
+    }
+
     private func makeClient(runner: CommandRecorder) -> ActivityInsightsControlClient {
         .init(
             auditExecutableURL: URL(fileURLWithPath: "/tmp/ActivityInsightsAudit"),
@@ -127,6 +152,14 @@ struct ActivityInsightsControlAdapterTests {
           }
         }
         """.utf8)
+    }
+
+    @MainActor
+    private func waitUntilIdle(_ controller: ActivityInsightsCollectorController) async {
+        for _ in 0..<100 where controller.isBusy {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(!controller.isBusy)
     }
 }
 
