@@ -10,6 +10,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
     private let statusItem: NSStatusItem
     private let popover: NSPopover
     private let renderer = MenuBarIconRenderer()
+    private let taskAllowance = TaskAllowanceStore()
     private let onRefresh: () -> Void
     private let onOpenSettings: () -> Void
     private let onQuit: () -> Void
@@ -40,6 +41,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
                 model: model,
                 settings: settings,
                 history: history,
+                taskAllowance: taskAllowance,
                 onRefresh: onRefresh,
                 onOpenSettings: onOpenSettings,
                 onQuit: onQuit
@@ -67,6 +69,7 @@ final class StatusBarController: NSObject, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
+            taskAllowance.refreshID += 1
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             startOutsideClickMonitor()
         }

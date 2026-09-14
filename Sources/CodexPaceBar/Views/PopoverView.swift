@@ -8,6 +8,8 @@ struct PopoverView: View {
     let model: AppModel
     let settings: SettingsStore
     let history: UsageHistoryStore
+    let taskAllowance: TaskAllowanceStore
+    @State private var showTopTasks = false
     let onRefresh: () -> Void
     let onOpenSettings: () -> Void
     let onQuit: () -> Void
@@ -15,6 +17,15 @@ struct PopoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+
+            if showTopTasks {
+                Button { showTopTasks = false } label: {
+                    Label("Overview", systemImage: "chevron.left")
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Back to Overview")
+            }
 
             if needsCodexSetup {
                 missingCodexView
@@ -26,8 +37,12 @@ struct PopoverView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else if let snapshot = model.snapshot {
-                metrics(snapshot)
-                    .frame(maxHeight: .infinity, alignment: .top)
+                if showTopTasks {
+                    TopTasksView(store: taskAllowance, model: model, history: history)
+                } else {
+                    metrics(snapshot)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
             } else {
                 Text("Reading Codex rate limits...")
                     .foregroundStyle(.secondary)
@@ -36,7 +51,7 @@ struct PopoverView: View {
 
             if needsCodexSetup {
                 missingCodexActions
-            } else {
+            } else if !showTopTasks {
                 actions
             }
         }
@@ -50,10 +65,10 @@ struct PopoverView: View {
                 .frame(width: 425, height: 54)
                 .accessibilityLabel(model.displayState.statusTitle)
 
+        }
+        .overlay(alignment: .trailing) {
             if model.isRefreshing {
-                Text("Refreshing...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                ProgressView().controlSize(.small).accessibilityLabel("Refreshing usage")
             }
         }
     }
@@ -75,37 +90,32 @@ struct PopoverView: View {
 
             usageChart
 
-            VStack(spacing: 0) {
-                DetailRow(
-                    icon: "clock",
-                    label: "Resets",
-                    value: DateFormatters.resetFormatter.string(from: snapshot.resetAt)
-                )
+            ActivityInsightsChartRow()
 
-                Divider()
-                    .overlay {
-                        GeometryReader { geometry in
-                            let markerDiameter: CGFloat = 8
-                            let markerX = markerDiameter / 2
-                                + (geometry.size.width - markerDiameter) * CGFloat(snapshot.elapsedFraction)
-
-                            Circle()
-                                .fill(.blue)
-                                .frame(width: markerDiameter, height: markerDiameter)
-                                .position(x: markerX, y: geometry.size.height / 2)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .padding(.leading, 48)
-
-                DetailRow(
-                    icon: "hourglass",
-                    label: "Hours to reset",
-                    value: hoursToReset(snapshot.resetAt)
-                )
-            }
-            .padding(.horizontal, 16)
+            DetailRow(
+                icon: "clock",
+                label: "Resets",
+                value: DateFormatters.resetFormatter.string(from: snapshot.resetAt)
+            )
+            .padding(.horizontal, 12)
             .background(panelBackground)
+            .help("\(hoursToReset(snapshot.resetAt)) until reset")
+
+            Button { showTopTasks = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "list.number").frame(width: 24)
+                    Text("Top 20 tasks").fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(.secondary)
+                }
+                .font(.system(size: 14))
+                .padding(.horizontal, 12)
+                .frame(height: 42)
+                .contentShape(Rectangle())
+                .background(panelBackground)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Show top 20 tasks")
 
             if snapshot.isStale {
                 Text("Data may be stale after reset.")
@@ -343,7 +353,7 @@ struct PopoverView: View {
                     AxisValueLabel(format: .dateTime.weekday(.abbreviated))
                 }
             }
-            .frame(height: 145)
+            .frame(height: 125)
 
             HStack(spacing: 14) {
                 ChartLegendItem(label: "Actual", color: .blue)
@@ -353,7 +363,6 @@ struct PopoverView: View {
                 )
             }
 
-            ActivityInsightsChartRow()
         }
         .padding(12)
         .background(panelBackground)

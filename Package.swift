@@ -30,7 +30,8 @@ let package = Package(
         ),
         .target(
             name: "CodexPaceBarCore",
-            path: "Sources/CodexPaceBarCore"
+            path: "Sources/CodexPaceBarCore",
+            linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .target(
             name: "CodexPaceBarAppSupport",

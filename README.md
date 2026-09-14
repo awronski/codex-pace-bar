@@ -6,7 +6,9 @@ Unofficial macOS menu bar app that shows whether your Codex weekly usage is belo
 
 **[Download the latest ready build for macOS](https://github.com/awronski/codex-pace-bar/releases/latest/download/CodexPaceBar.dmg)**
 
-<img src="docs/screenshots/popover.png?v=2026-06-16" alt="Codex Pace Bar popover" width="472">
+<img src="docs/screenshots/popover.png?v=2026-09-14" alt="Codex Pace Bar Overview with weekly usage, forecast, Activity Insights, and Top 20 tasks navigation" width="465">
+
+Overview shown with sample usage and activity data.
 
 Codex Pace Bar answers one question at a glance: are you using your weekly Codex limit faster or slower than the current reset window pace?
 
@@ -45,6 +47,11 @@ If your Codex CLI is installed somewhere else, set the exact executable path in 
 - A popover with used, ideal, remaining, reset time, and hours until reset.
 - If usage is above pace, the popover shows how long to wait for the ideal pace to catch up.
 - A chart of usage percentage during the current weekly window.
+- A **Top 20 tasks** row on the Overview opening a task detail page, with
+  **Today** and **Since last reset** periods. Each row shows the project, saved task name,
+  and an illustrative **Share of weekly allowance** (for example, `12.0%` of the full allowance).
+  The Overview fits without scrolling; task details has a Back to Overview button and a scrollable
+  ranking. Hover over or activate a task row to see its full title in a padded, multiline card.
 - A run-out forecast that learns recency-weighted hourly usage patterns for workdays and weekends from the last 30 days, then adapts their intensity to the current window.
 - A recent-pace forecast while the history-based model is still learning.
 - When the separate local Activity Insights (Beta) collector is explicitly enabled, one optional chart
@@ -54,6 +61,36 @@ If your Codex CLI is installed somewhere else, set the exact executable path in 
 ![Codex Pace Bar menu bar item](docs/screenshots/menu-bar.png)
 
 ## Settings
+
+### Task allowance allocation
+
+<img src="docs/screenshots/top-tasks.png?v=2026-09-14" alt="Top tasks showing fictional projects and task titles ranked by their share of weekly allowance" width="465">
+
+The Overview and Top tasks screenshots use synthetic data. All project names, task titles,
+and usage figures shown in them are fictional; no private task history is included.
+
+The Top tasks page reads local Codex task metadata and active/archived token histories on demand.
+Its formula is `weekly allowance used × task tokens in the selected period / all recorded tokens since reset`.
+The denominator includes every task, including those outside the top 20. Today changes only the
+numerator, uses local midnight, and is clipped to the current weekly reset when it occurred today.
+The selected period is remembered. Opening task details or reopening its popover refreshes local
+history; Refresh now on the Overview also updates the allowance snapshot used by the ranking.
+
+These are illustrative allocations, not measured per-task plan charges. Model and cache charging
+weights are unknown, and work unavailable on this Mac cannot be attributed. The list shows the
+snapshot time, qualifies incomplete histories, and excludes explicitly identified separate model
+buckets such as Spark. Request input plus output counts include cached input; reasoning tokens are
+already part of output. Child-agent usage is grouped under its owning task; separate user forks keep
+their own rows. Duplicate notifications and inherited opening balances are not counted again.
+When inherited history has no earlier counter, its first counter establishes a baseline;
+ambiguous request usage is excluded and the history is marked as qualified.
+
+This reader is independent of the Activity Insights collector and does not require enabling it.
+It opens Codex SQLite metadata read-only and caches token facts in memory. It does not persist task
+names, conversation bodies, or a second task archive. The existing pace history and forecasting
+continue to use account-level percentage observations.
+
+### App preferences
 
 <img src="docs/screenshots/settings.png?v=0.4.1" alt="Codex Pace Bar settings" width="626">
 
@@ -129,6 +166,7 @@ Codex Pace Bar is local-only.
 - No network calls from this app.
 - No OpenAI credentials are requested or stored.
 - Account and rate-limit data is read only through the local Codex app-server using your existing Codex session.
+- The Top tasks page also reads local Codex task metadata and token events; all allocation happens locally.
 - Usage history contains local timestamps, percentage used, limit identifiers, and reset metadata for up to 30 days.
 
 The optional Activity Insights collector is a beta feature implemented as a separate,

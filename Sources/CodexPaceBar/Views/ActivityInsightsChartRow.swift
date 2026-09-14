@@ -48,7 +48,6 @@ struct ActivityInsightsChartRow: View {
     @ViewBuilder
     private func rowShell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Divider()
             HStack {
                 Text("Activity Insights")
                     .font(.system(size: 14, weight: .semibold))
@@ -58,6 +57,15 @@ struct ActivityInsightsChartRow: View {
                     .foregroundStyle(.secondary)
             }
             content()
+        }
+        .padding(12)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.quaternary.opacity(0.5))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(.separator.opacity(0.35), lineWidth: 1)
+                }
         }
     }
 

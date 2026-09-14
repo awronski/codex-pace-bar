@@ -1,5 +1,6 @@
 .build/
 dist/
+/output/
 .codex/
 SPEC.md
 SIGN.md
