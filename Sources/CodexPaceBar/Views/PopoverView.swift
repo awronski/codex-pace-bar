@@ -293,7 +293,14 @@ struct PopoverView: View {
     }
 
     private var usageChart: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let windowEnd = model.selectedWindow?.resetsAt ?? history.currentSamples.last?.resetAt ?? Date()
+        let windowDuration = (model.selectedWindow?.windowDurationMins ?? 7 * 24 * 60) * 60
+        let windowStart = windowEnd.addingTimeInterval(-windowDuration)
+        let dayDuration = windowDuration / 7
+        let dayBoundaries = (1..<7).map { windowStart.addingTimeInterval(Double($0) * dayDuration) }
+        let dayCenters = (0..<7).map { windowStart.addingTimeInterval((Double($0) + 0.5) * dayDuration) }
+
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("Weekly limit usage (%)")
                     .font(.system(size: 14, weight: .semibold))
@@ -341,6 +348,7 @@ struct PopoverView: View {
             ])
             .chartLegend(.hidden)
             .chartYScale(domain: 0...100)
+            .chartXScale(domain: windowStart...windowEnd)
             .chartYAxis {
                 AxisMarks(position: .leading, values: [0, 50, 100]) {
                     AxisGridLine()
@@ -348,9 +356,17 @@ struct PopoverView: View {
                 }
             }
             .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 7)) {
+                AxisMarks(values: dayBoundaries) {
                     AxisGridLine()
-                    AxisValueLabel(format: .dateTime.weekday(.abbreviated))
+                }
+                AxisMarks(values: dayCenters) { value in
+                    AxisValueLabel {
+                        // Label each billing day by its start date, even when
+                        // the centered label falls after local midnight.
+                        if let day = Calendar.current.date(byAdding: .day, value: value.index, to: windowStart) {
+                            Text(day, format: .dateTime.weekday(.abbreviated))
+                        }
+                    }
                 }
             }
             .frame(height: 125)
