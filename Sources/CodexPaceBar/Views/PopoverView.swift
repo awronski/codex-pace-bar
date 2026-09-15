@@ -1,7 +1,6 @@
 import CodexPaceBarCore
 import CodexPaceBarAppSupport
 import AppKit
-import Charts
 import SwiftUI
 
 struct PopoverView: View {
@@ -91,15 +90,6 @@ struct PopoverView: View {
             usageChart
 
             ActivityInsightsChartRow()
-
-            DetailRow(
-                icon: "clock",
-                label: "Resets",
-                value: DateFormatters.resetFormatter.string(from: snapshot.resetAt)
-            )
-            .padding(.horizontal, 12)
-            .background(panelBackground)
-            .help("\(hoursToReset(snapshot.resetAt)) until reset")
 
             Button { showTopTasks = true } label: {
                 HStack(spacing: 12) {
@@ -275,11 +265,6 @@ struct PopoverView: View {
         return "\(Int(value.rounded(.up))) h"
     }
 
-    private func hoursToReset(_ resetAt: Date) -> String {
-        let hours = max(0, resetAt.timeIntervalSinceNow / 3600)
-        return self.hours(hours)
-    }
-
     private var forecastStatus: String? {
         guard let forecast = model.forecast else {
             return nil
@@ -295,105 +280,14 @@ struct PopoverView: View {
     private var usageChart: some View {
         let windowEnd = model.selectedWindow?.resetsAt ?? history.currentSamples.last?.resetAt ?? Date()
         let windowDuration = (model.selectedWindow?.windowDurationMins ?? 7 * 24 * 60) * 60
-        let windowStart = windowEnd.addingTimeInterval(-windowDuration)
-        let dayDuration = windowDuration / 7
-        let dayBoundaries = (1..<7).map { windowStart.addingTimeInterval(Double($0) * dayDuration) }
-        let dayCenters = (0..<7).map { windowStart.addingTimeInterval((Double($0) + 0.5) * dayDuration) }
 
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Weekly limit usage (%)")
-                    .font(.system(size: 14, weight: .semibold))
-
-                Spacer()
-
-                Text("Current weekly window")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Chart {
-                ForEach(history.currentSamples, id: \.timestamp) { sample in
-                    LineMark(
-                        x: .value("Time", sample.timestamp),
-                        y: .value("Used", sample.usedPercent),
-                        series: .value("Series", "Actual")
-                    )
-                    .foregroundStyle(by: .value("Series", "Actual"))
-                    .interpolationMethod(.linear)
-                }
-
-                ForEach(forecastChartPoints) { point in
-                    LineMark(
-                        x: .value("Time", point.date),
-                        y: .value("Forecast", point.value),
-                        series: .value("Series", "Forecast")
-                    )
-                    .foregroundStyle(by: .value("Series", "Forecast"))
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [6, 3]))
-                    .interpolationMethod(.linear)
-                }
-
-                if let latest = history.currentSamples.last {
-                    PointMark(
-                        x: .value("Time", latest.timestamp),
-                        y: .value("Used", latest.usedPercent)
-                    )
-                    .foregroundStyle(by: .value("Series", "Actual"))
-                }
-            }
-            .chartForegroundStyleScale([
-                "Actual": Color.blue,
-                "Forecast": Color.orange
-            ])
-            .chartLegend(.hidden)
-            .chartYScale(domain: 0...100)
-            .chartXScale(domain: windowStart...windowEnd)
-            .chartYAxis {
-                AxisMarks(position: .leading, values: [0, 50, 100]) {
-                    AxisGridLine()
-                    AxisValueLabel()
-                }
-            }
-            .chartXAxis {
-                AxisMarks(values: dayBoundaries) {
-                    AxisGridLine()
-                }
-                AxisMarks(values: dayCenters) { value in
-                    AxisValueLabel {
-                        // Label each billing day by its start date, even when
-                        // the centered label falls after local midnight.
-                        if let day = Calendar.current.date(byAdding: .day, value: value.index, to: windowStart) {
-                            Text(day, format: .dateTime.weekday(.abbreviated))
-                        }
-                    }
-                }
-            }
-            .frame(height: 125)
-
-            HStack(spacing: 14) {
-                ChartLegendItem(label: "Actual", color: .blue)
-                ChartLegendItem(
-                    label: model.forecast == nil ? "Forecast pending" : "Forecast",
-                    color: model.forecast == nil ? .orange.opacity(0.4) : .orange
-                )
-            }
-
-        }
-        .padding(12)
-        .background(panelBackground)
-    }
-
-    private var forecastChartPoints: [UsageChartPoint] {
-        guard let forecast = model.forecast else {
-            return []
-        }
-
-        return forecast.projection.enumerated().map { index, point in
-            UsageChartPoint(
-                id: "forecast-\(index)",
-                date: point.timestamp,
-                value: point.usedPercent
+        return TimelineView(.periodic(from: .now, by: 60)) { context in
+            WeeklyUsageChart(
+                windowStart: windowEnd.addingTimeInterval(-windowDuration),
+                windowEnd: windowEnd,
+                samples: history.currentSamples,
+                forecast: model.forecast,
+                now: context.date
             )
         }
     }
@@ -414,28 +308,6 @@ struct PopoverView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(.separator.opacity(0.35), lineWidth: 1)
             }
-    }
-}
-
-private struct UsageChartPoint: Identifiable {
-    let id: String
-    let date: Date
-    let value: Double
-}
-
-private struct ChartLegendItem: View {
-    let label: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
     }
 }
 
