@@ -47,6 +47,75 @@ struct UsagePatternForecasterTests {
     }
 
     @Test
+    func adaptedForecastWarnsWhenFivePercentCannotLastUntilReset() throws {
+        let now = date("2026-07-13T09:00:00Z")
+        let forecast = try #require(adaptiveForecast(now: now, used: 95, observedUsage: 24))
+
+        // History predicts 12 points over the next 6 hours; the current pace predicts 6.
+        // With 24 hours observed, the blend is 7.2 points, or 1.2 points per hour.
+        let expectedExhaustion = now.addingTimeInterval((5 / 1.2) * hour)
+        #expect(abs(forecast.exhaustionAt.timeIntervalSince(expectedExhaustion)) < 0.001)
+        #expect(forecast.willRunOutBeforeReset)
+        #expect(forecast.projection.last?.usedPercent == 100)
+        #expect(forecast.projection.last?.timestamp == forecast.exhaustionAt)
+    }
+
+    @Test(arguments: [50.0, 90.0, 95.0])
+    func adaptedConsumptionRateDoesNotDependOnRemainingAllowance(used: Double) throws {
+        let now = date("2026-07-13T09:00:00Z")
+        let forecast = try #require(adaptiveForecast(now: now, used: used, observedUsage: 24))
+
+        let firstHour = try #require(forecast.projection.first {
+            $0.timestamp == now.addingTimeInterval(hour)
+        })
+        #expect(abs(firstHour.usedPercent - used - 1.2) < 0.000_001)
+        #expect(forecast.willRunOutBeforeReset == (used == 95))
+    }
+
+    @Test
+    func adaptedSlowUsageCanStillLastDespiteHighHistoricalUsage() throws {
+        let now = date("2026-07-13T09:00:00Z")
+        let forecast = try #require(adaptiveForecast(now: now, used: 95, observedUsage: 0))
+
+        // A quiet current window reduces the historical 12-point estimate to 2.4.
+        let last = try #require(forecast.projection.last)
+        #expect(abs(last.usedPercent - 97.4) < 0.000_001)
+        #expect(last.timestamp == forecast.resetAt)
+        #expect(!forecast.willRunOutBeforeReset)
+    }
+
+    @Test(arguments: [88.0, 89.0, 95.0])
+    func adaptedForecastDistinguishesExactResetFromEarlyExhaustion(used: Double) throws {
+        let now = date("2026-07-13T09:00:00Z")
+        let forecast = try #require(adaptiveForecast(now: now, used: used, observedUsage: 48))
+
+        // Both historical and current consumption are 2 points per hour.
+        let expectedExhaustion = now.addingTimeInterval((100 - used) / 2 * hour)
+        #expect(abs(forecast.exhaustionAt.timeIntervalSince(expectedExhaustion)) < 0.001)
+        #expect(forecast.willRunOutBeforeReset == (used > 88))
+    }
+
+    @Test
+    func adaptedForecastPreservesPausesBeforeEarlyExhaustion() throws {
+        let now = date("2026-07-13T09:00:00Z")
+        let forecast = try #require(adaptiveForecast(
+            now: now,
+            used: 95,
+            observedUsage: 24,
+            hourlyRates: [0, 0, 2, 2, 2, 2]
+        ))
+
+        #expect(forecast.projection[2] == UsageForecastPoint(
+            timestamp: now.addingTimeInterval(2 * hour),
+            usedPercent: 95
+        ))
+        // The blended 6.4 points retain the two-hour pause, then use 1.6 points/hour.
+        let expectedExhaustion = now.addingTimeInterval((2 + 5 / 1.6) * hour)
+        #expect(abs(forecast.exhaustionAt.timeIntervalSince(expectedExhaustion)) < 0.001)
+        #expect(forecast.willRunOutBeforeReset)
+    }
+
+    @Test
     func predictsExactExhaustionFromThirtyDaysOfHourlyPatterns() throws {
         let now = date("2026-07-13T09:00:00Z")
         let resetAt = now.addingTimeInterval(7 * day)
@@ -456,6 +525,30 @@ struct UsagePatternForecasterTests {
             mode: .historyBased,
             calendar: utcCalendar
         )
+    }
+
+    private func adaptiveForecast(
+        now: Date,
+        used: Double,
+        observedUsage: Double,
+        hourlyRates: [Double] = Array(repeating: 2, count: 6)
+    ) -> UsageForecast? {
+        let resetAt = now.addingTimeInterval(6 * hour)
+        var samples = repeatingPattern(
+            now: now,
+            weeksAgo: [4, 3, 2, 1],
+            startOffsetHours: 0,
+            hourlyRates: hourlyRates,
+            currentUsed: nil,
+            currentResetAt: resetAt
+        )
+        // Trigger adaptation with a full current day. The long observation gap is
+        // excluded from hourly learning, keeping the historical pattern deterministic.
+        samples += [
+            sample(at: now.addingTimeInterval(-day), used: used - observedUsage, resetAt: resetAt),
+            sample(at: now, used: used, resetAt: resetAt)
+        ]
+        return historyForecast(samples, now: now)
     }
 
     private func repeatingPattern(

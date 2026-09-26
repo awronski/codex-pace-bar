@@ -216,12 +216,14 @@ enum UsagePatternForecaster {
         }
 
         let adaptedUsage = adaptedFutureUsage(
-            historicalFutureUsage: min(historicalFutureUsage, remainingUsage),
+            historicalFutureUsage: historicalFutureUsage,
             currentObservedUsage: latest.usedPercent - first.usedPercent,
             observedDuration: observedDuration,
             remainingDuration: remainingDuration
         )
-        return min(remainingUsage, max(0, adaptedUsage)) / historicalFutureUsage
+        // Predict consumption independently of the allowance; the projection finds
+        // when that consumption reaches the limit, including before the reset.
+        return max(0, adaptedUsage) / historicalFutureUsage
     }
 
     private static func projectedUsage(
