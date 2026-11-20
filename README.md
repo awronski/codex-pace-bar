@@ -49,7 +49,7 @@ If your Codex CLI is installed somewhere else, set the exact executable path in 
 - A chart of usage percentage during the current weekly window.
 - A **Top 20 tasks** row on the Overview opening a task detail page, with
   **Today** and **Since last reset** periods. Each row shows the project, saved task name,
-  and an illustrative **Share of weekly allowance** (for example, `12.0%` of the full allowance).
+  and its **Share of local tokens** recorded in the weekly window.
   The Overview fits without scrolling; task details has a Back to Overview button and a scrollable
   ranking. Hover over or activate a task row to see its full title in a padded, multiline card.
 - A run-out forecast that learns recency-weighted hourly usage patterns for workdays and weekends from the last 30 days, then adapts their intensity to the current window.
@@ -62,23 +62,21 @@ If your Codex CLI is installed somewhere else, set the exact executable path in 
 
 ## Settings
 
-### Task allowance allocation
-
-<img src="docs/screenshots/top-tasks.png?v=2026-09-14" alt="Top tasks showing fictional projects and task titles ranked by their share of weekly allowance" width="465">
-
-The Overview and Top tasks screenshots use synthetic data. All project names, task titles,
-and usage figures shown in them are fictional; no private task history is included.
+### Top tasks
 
 The Top tasks page reads local Codex task metadata and active/archived token histories on demand.
-Its formula is `weekly allowance used × task tokens in the selected period / all recorded tokens since reset`.
+Its formula is `100 × task tokens in the selected period / all recorded local tokens since reset`.
 The denominator includes every task, including those outside the top 20. Today changes only the
 numerator, uses local midnight, and is clipped to the current weekly reset when it occurred today.
 The selected period is remembered. Opening task details or reopening its popover refreshes local
-history; Refresh now on the Overview also updates the allowance snapshot used by the ranking.
+history. Refresh now on the Overview also updates the window and snapshot time used by the ranking.
 
-These are illustrative allocations, not measured per-task plan charges. Model and cache charging
-weights are unknown, and work unavailable on this Mac cannot be attributed. The list shows the
-snapshot time, qualifies incomplete histories, and excludes explicitly identified separate model
+Codex can store a thread's speed preference, and individual turns can override it. Local usage
+records lack the speed that served each request, so a speed-adjusted allowance estimate is unavailable.
+Model charges, cache mix, and activity outside this Mac also affect allowance attribution. Purchased
+credits use separate rates. The weekly meter uses the account's `usedPercent`.
+
+The list shows the snapshot time, qualifies incomplete histories, and excludes identified separate model
 buckets such as Spark. Request input plus output counts include cached input; reasoning tokens are
 already part of output. Child-agent usage is grouped under its owning task; separate user forks keep
 their own rows. Duplicate notifications and inherited opening balances are not counted again.
@@ -166,7 +164,7 @@ Codex Pace Bar is local-only.
 - No network calls from this app.
 - No OpenAI credentials are requested or stored.
 - Account and rate-limit data is read only through the local Codex app-server using your existing Codex session.
-- The Top tasks page also reads local Codex task metadata and token events; all allocation happens locally.
+- The Top tasks page also reads local Codex task metadata and token events. It computes token shares locally.
 - Usage history contains local timestamps, percentage used, limit identifiers, and reset metadata for up to 30 days.
 
 The optional Activity Insights collector is a beta feature implemented as a separate,

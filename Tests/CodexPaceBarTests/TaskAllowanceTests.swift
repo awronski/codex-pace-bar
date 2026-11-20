@@ -13,21 +13,21 @@ struct TaskAllowanceTests {
         TaskTokenHistory(id: id, name: "Task \(id)", project: "Project", parentID: parent, events: events)
     }
 
-    @Test func allocationUsesAllTasksBeforeTakingTop20() {
+    @Test func tokenSharesUseAllTasksBeforeTakingTop20() {
         let histories = (0..<25).map { history(String($0), events: [event(start, 100)]) }
         let report = TaskAllowanceReport(windowStart: start, snapshotAt: start.addingTimeInterval(100),
-            usedPercent: 60, histories: histories, warnings: [])
+            histories: histories, warnings: [])
         let rows = report.rows(for: .sinceReset)
         #expect(rows.count == 25)
-        #expect(abs(rows.reduce(0) { $0 + $1.percentagePoints } - 60) < 0.000001)
-        #expect(abs(rows.prefix(20).reduce(0) { $0 + $1.percentagePoints } - 48) < 0.000001)
+        #expect(rows.reduce(0) { $0 + $1.tokenSharePercent } == 100)
+        #expect(rows.prefix(20).reduce(0) { $0 + $1.tokenSharePercent } == 80)
     }
 
     @Test func todayUsesWeeklyDenominatorAndIncludesChildTokens() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let today = calendar.startOfDay(for: start).addingTimeInterval(86400)
-        let report = TaskAllowanceReport(windowStart: start, snapshotAt: today.addingTimeInterval(3600), usedPercent: 60,
+        let report = TaskAllowanceReport(windowStart: start, snapshotAt: today.addingTimeInterval(3600),
             histories: [history("a", events: [event(start, 600), event(today, 100)]),
                         history("b", events: [event(start, 200)]),
                         history("child", parent: "a", events: [event(today, 100)])], warnings: [])
@@ -35,19 +35,57 @@ struct TaskAllowanceTests {
         #expect(rows.count == 1)
         #expect(rows.first?.id == "a")
         #expect(rows.first?.tokens == 200)
-        #expect(rows.first?.percentagePoints == 12)
-        #expect(report.rows(for: .sinceReset).first?.percentagePoints == 48)
+        #expect(rows.first?.tokenSharePercent == 20)
+        #expect(report.rows(for: .sinceReset).first?.tokenSharePercent == 80)
     }
 
     @Test func todayClipsToResetAndRespectsLocalCalendar() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Warsaw")!
-        let report = TaskAllowanceReport(windowStart: start, snapshotAt: start.addingTimeInterval(60), usedPercent: 20,
+        let report = TaskAllowanceReport(windowStart: start, snapshotAt: start.addingTimeInterval(60),
             histories: [history("a", events: [event(start.addingTimeInterval(-1), 500), event(start, 100),
                                                event(start.addingTimeInterval(61), 900)])], warnings: [])
         #expect(report.periodStart(.today, calendar: calendar) == start)
         #expect(report.rows(for: .today, calendar: calendar).first?.tokens == 100)
-        #expect(report.rows(for: .today, calendar: calendar).first?.percentagePoints == 20)
+        #expect(report.rows(for: .today, calendar: calendar).first?.tokenSharePercent == 100)
+    }
+
+    @Test func threeSpeedPreferencesUseRecordedTokenShares() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        for tier in ["default", "priority", "ultrafast"] {
+            let lines = [meta(tier, at: start)] + turn(at: start, selectedTier: tier, total: 100, last: 100)
+            try fixture.task(id: tier, name: tier, project: nil, updated: start, contents: lines.joined(separator: "\n"))
+        }
+        let window = CodexLimitWindow(limitId: "codex", source: "test", usedPercent: 9,
+            windowDurationMins: 10080, resetsAt: start.addingTimeInterval(604800))
+        let report = try await TaskTokenHistoryReader(home: fixture.home).load(window: window, snapshotAt: start.addingTimeInterval(60))
+        let rows = report.rows(for: .sinceReset)
+        #expect(rows.map(\.tokens) == [100, 100, 100])
+        #expect(rows.map(\.tokenSharePercent) == Array(repeating: 100.0 / 3, count: 3))
+    }
+
+    @Test func changedAndMissingSpeedPreferencesUseTheWeeklyTokenDenominator() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let today = calendar.startOfDay(for: start).addingTimeInterval(86400)
+        let end = today.addingTimeInterval(60)
+        var lines = [meta("changing", at: start)]
+        lines += turn(at: start, selectedTier: "default", total: 100, last: 100)
+        lines += turn(at: today, selectedTier: "ultrafast", total: 200, last: 100)
+        lines += turn(at: today.addingTimeInterval(1), selectedTier: nil, total: 300, last: 100)
+        try fixture.task(id: "changing", name: "Changing speed", project: nil, updated: end, contents: lines.joined(separator: "\n"))
+        try fixture.task(id: "unknown", name: "Unknown speed", project: nil, updated: start,
+            contents: meta("unknown", at: start) + "\n" + token(at: start, total: 200, last: 200))
+        let window = CodexLimitWindow(limitId: "codex", source: "test", usedPercent: 15,
+            windowDurationMins: 10080, resetsAt: start.addingTimeInterval(604800))
+        let report = try await TaskTokenHistoryReader(home: fixture.home).load(window: window, snapshotAt: end)
+        #expect(report.rows(for: .sinceReset).map(\.tokenSharePercent) == [60, 40])
+        let rows = report.rows(for: .today, calendar: calendar)
+        #expect(rows.map(\.id) == ["changing"])
+        #expect(rows.map(\.tokenSharePercent) == [40])
     }
 
     @Test func duplicateNotificationsCacheAndReasoningAreNotAddedAgain() {
@@ -163,7 +201,7 @@ struct TaskAllowanceTests {
         #expect(rows.map(\.tokens) == [100, 50])
         #expect(rows.first?.name == "Saved task title")
         #expect(rows.first?.project == "Saved Project")
-        #expect(rows.map(\.percentagePoints) == [40, 20])
+        #expect(rows.map(\.tokenSharePercent) == [200.0 / 3, 100.0 / 3])
         // Changing a file invalidates its cached token facts.
         try fixture.append("\n" + token(at: start.addingTimeInterval(50), total: 200, last: 100), task: "child")
         let refreshed = try await reader.load(window: window, snapshotAt: end)
@@ -186,6 +224,18 @@ struct TaskAllowanceTests {
         #expect(report.warnings.contains { $0.contains("Separate model buckets") })
     }
 
+    @Test func readerReportsNoEligibleTokensWhenOnlySeparateBucketsAreRecorded() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        try fixture.task(id: "spark", name: "Spark", project: nil, updated: start,
+            contents: meta("spark", at: start) + "\n" + token(at: start, total: 100, last: 100, bucket: "codex-spark"))
+        let window = CodexLimitWindow(limitId: "codex", source: "test", usedPercent: 60,
+            windowDurationMins: 10080, resetsAt: start.addingTimeInterval(604800))
+        let report = try await TaskTokenHistoryReader(home: fixture.home).load(window: window, snapshotAt: start.addingTimeInterval(100))
+        #expect(report.rows(for: .sinceReset).isEmpty)
+        #expect(report.warnings.contains("Weekly usage was reported. No eligible local token events were available for this window."))
+    }
+
     @Test func missingDatabaseDoesNotCreateDatabase() async throws {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
@@ -201,6 +251,16 @@ struct TaskAllowanceTests {
     private func meta(_ id: String, at date: Date, inherited: Bool = false) -> String {
         json(["timestamp": stamp(date), "type": "session_meta", "payload": ["id": id, "timestamp": stamp(date),
               "cwd": "/code/test", "history_base": inherited ? ["id": "original"] as Any : NSNull()]])
+    }
+    private func turn(at date: Date, selectedTier: String?, total: Int, last: Int) -> [String] {
+        let model = "gpt-6.2-sol"
+        var settings = ["model": model]
+        settings["service_tier"] = selectedTier
+        return [
+            json(["timestamp": stamp(date), "type": "event_msg", "payload": ["type": "thread_settings_applied", "thread_settings": settings]]),
+            json(["timestamp": stamp(date), "type": "turn_context", "payload": ["model": model]]),
+            token(at: date, total: total, last: last)
+        ]
     }
     private func token(at date: Date, total: Int, last: Int?, bucket: String = "codex") -> String {
         func usage(_ count: Int) -> [String: Int] {

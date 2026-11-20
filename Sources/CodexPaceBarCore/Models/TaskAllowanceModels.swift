@@ -29,13 +29,12 @@ public struct TaskAllowanceRow: Identifiable, Equatable, Sendable {
     public let project: String
     public let name: String
     public let tokens: Int64
-    public let percentagePoints: Double
+    public let tokenSharePercent: Double
 }
 
 public struct TaskAllowanceReport: Sendable {
     public let windowStart: Date
     public let snapshotAt: Date
-    public let usedPercent: Double
     public let histories: [TaskTokenHistory]
     public let warnings: [String]
 
@@ -43,7 +42,7 @@ public struct TaskAllowanceReport: Sendable {
         period == .today ? max(windowStart, calendar.startOfDay(for: snapshotAt)) : windowStart
     }
 
-    /// Both periods use the FULL weekly token denominator. Today only changes the numerator.
+    /// Both periods use all recorded local tokens in the weekly window as the denominator.
     public func rows(for period: TaskAllowancePeriod, calendar: Calendar = .current) -> [TaskAllowanceRow] {
         let start = periodStart(period, calendar: calendar)
         let byID = Dictionary(histories.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -67,7 +66,7 @@ public struct TaskAllowanceReport: Sendable {
             guard tokens > 0, let history = byID[id] else { return nil }
             return TaskAllowanceRow(
                 id: id, project: history.project, name: history.name, tokens: tokens,
-                percentagePoints: usedPercent * Double(tokens) / weeklyTotal
+                tokenSharePercent: 100 * Double(tokens) / weeklyTotal
             )
         }.sorted { $0.tokens == $1.tokens ? $0.id < $1.id : $0.tokens > $1.tokens }
     }

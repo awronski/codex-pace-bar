@@ -116,10 +116,10 @@ public actor TaskTokenHistoryReader {
         }
         if excludedBucket { warnings.insert("Separate model buckets and non-OpenAI providers are excluded.") }
         if histories.values.allSatisfy({ $0.events.isEmpty }) && window.usedPercent > 0 {
-            warnings.insert("No matching local token events were found for the allowance used.")
+            warnings.insert("Weekly usage was reported. No eligible local token events were available for this window.")
         }
         return TaskAllowanceReport(windowStart: boundary.start, snapshotAt: snapshotAt,
-            usedPercent: window.usedPercent, histories: Array(histories.values), warnings: warnings.sorted())
+            histories: Array(histories.values), warnings: warnings.sorted())
     }
 
     private func parse(_ path: String) throws -> ParsedFile {

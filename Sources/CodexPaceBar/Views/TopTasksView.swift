@@ -46,7 +46,7 @@ struct TopTasksView: View {
     private func ranking(_ report: TaskAllowanceReport) -> some View {
         let rows = report.rows(for: period)
         let top = Array(rows.prefix(20))
-        let other = rows.dropFirst(20).reduce(0) { $0 + $1.percentagePoints }
+        let other = rows.dropFirst(20).reduce(0) { $0 + $1.tokenSharePercent }
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(rangeLabel(report))
@@ -55,20 +55,20 @@ struct TopTasksView: View {
                 Spacer(minLength: 0)
                 Button { showingExplanation.toggle() } label: {
                     HStack(spacing: 4) {
-                        Text("Share of weekly allowance")
+                        Text("Share of local tokens")
                         Image(systemName: "info.circle")
                     }
                     .font(.caption)
                 }
                 .buttonStyle(.plain)
                 .fixedSize()
-                .accessibilityLabel("How weekly allowance is allocated")
+                .accessibilityLabel("How local token shares are calculated")
                 .popover(isPresented: $showingExplanation) {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Share of weekly allowance").font(.headline)
-                        Text("2.4% means an illustrative share of your full weekly allowance.")
-                        Text("Weekly usage is divided between tasks in proportion to their recorded tokens. Today counts only today's tokens and keeps the same weekly scale.")
-                        Text("Model and cache charging weights are unknown. Only local history is included; child-agent usage belongs to its parent task.")
+                        Text("Share of local tokens").font(.headline)
+                        Text("Each task’s share uses the total local tokens recorded since the weekly reset. Today uses the same total and counts only today’s tokens for each task. Child-agent tokens count toward the parent task.")
+                        Text("Codex history lacks the speed used for each request, so a speed-adjusted allowance estimate is unavailable.")
+                        Text("Cache mix and model charges affect allowance usage. Activity outside this Mac may be missing. Purchased credits use separate rates.")
                             .foregroundStyle(.secondary)
                     }
                     .font(.system(size: 14))
@@ -83,22 +83,22 @@ struct TopTasksView: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(top.enumerated()), id: \.element.id) { index, row in
-                            TaskAllowanceListRow(row: row, rank: index + 1, maximum: top.first?.percentagePoints ?? 0)
+                            TaskAllowanceListRow(row: row, rank: index + 1, maximum: top.first?.tokenSharePercent ?? 0)
                             if index < top.count - 1 { Divider().padding(.horizontal, 10) }
                         }
                     }
                 }
                 .id(period)
-                .accessibilityLabel("Top tasks ranked by share of weekly allowance")
+                .accessibilityLabel("Top tasks ranked by recorded local tokens")
             }
             HStack {
-                Text("Illustrative allocation · local history")
+                Text("Speed-adjusted allowance unavailable")
                 Spacer()
-                Text(rows.count > 20 ? "Top 20 · scroll for more" : "\(rows.count) tasks")
+                Text(rows.count > 20 ? "20 of \(rows.count) tasks" : "\(rows.count) tasks")
             }
             .font(.caption).foregroundStyle(.secondary)
             if rows.count > 20 {
-                Text("Other tasks: \(allowancePercentage(other))")
+                Text("Other tasks: \(tokenSharePercentage(other))")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if !report.warnings.isEmpty {
@@ -136,14 +136,14 @@ private struct TaskAllowanceListRow: View {
                         Text("\(Text(row.project).foregroundStyle(.secondary)) — \(row.name)")
                             .font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
                         Spacer(minLength: 0)
-                        Text(allowancePercentage(row.percentagePoints))
+                        Text(tokenSharePercentage(row.tokenSharePercent))
                             .font(.system(size: 14, weight: .semibold)).monospacedDigit().fixedSize()
                     }
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             Capsule().fill(.primary.opacity(0.1))
                             Capsule().fill(.blue.opacity(0.8))
-                                .frame(width: maximum > 0 ? geometry.size.width * row.percentagePoints / maximum : 0)
+                                .frame(width: maximum > 0 ? geometry.size.width * row.tokenSharePercent / maximum : 0)
                         }
                     }
                     .frame(height: 4)
@@ -177,11 +177,11 @@ private struct TaskAllowanceListRow: View {
             .padding(18)
             .frame(width: 310, alignment: .leading)
         }
-        .accessibilityLabel("\(rank). \(row.project), \(row.name), \(allowancePercentage(row.percentagePoints)) of weekly allowance, illustrative")
+        .accessibilityLabel("\(rank). \(row.project), \(row.name), \(tokenSharePercentage(row.tokenSharePercent)) of local tokens since reset")
         .accessibilityHint("Show full task title")
     }
 }
 
-private func allowancePercentage(_ value: Double) -> String {
+private func tokenSharePercentage(_ value: Double) -> String {
     (value > 0 && value < 0.05 ? "<0.1" : value.formatted(.number.precision(.fractionLength(1)))) + "%"
 }

@@ -25,9 +25,14 @@ struct RateLimitServiceTests {
         let service = RateLimitService(executableURL: executableURL, client: client)
 
         let result = try await service.fetchWeeklyLimit()
+        let window = result.selection.window
+        let now = window.resetsAt.addingTimeInterval(-86_400)
+        let snapshot = PaceCalculator.snapshot(for: window, now: now, fetchedAt: now, previousState: nil)
 
-        #expect(result.selection.window.usedPercent == 42)
-        #expect(result.selection.window.source == "rateLimitsByLimitId.codex.secondary")
+        #expect(window.usedPercent == 42)
+        #expect(window.source == "rateLimitsByLimitId.codex.secondary")
+        #expect(snapshot.actualUsedPercent == 42)
+        #expect(snapshot.remainingPercent == 58)
         #expect(result.debugInfo.executablePath == executableURL.path)
         #expect(await client.requestedMethods() == ["account/read", "account/rateLimits/read"])
     }
